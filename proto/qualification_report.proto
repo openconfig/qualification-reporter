@@ -1,0 +1,65 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package openconfig.qualificationreporter;
+
+import "test_result.proto";
+import "pcr.proto";
+
+option go_package = "github.com/openconfig/qualification-reporter/proto";
+
+// QualificationReport encapsulates image metadata, standardized PCR
+// measurements, and raw test execution results submitted by vendors.
+message QualificationReport {
+  ImageMetadata image_metadata = 1;
+
+  // Target vendor identity.
+  Vendor vendor = 2;
+
+  // Standardized PCR measurements for platform integrity verification.
+  PCRResponse pcr_response = 3;
+
+  // Factual test results for all evaluated test cases.
+  repeated ondatra.TestResult feature_profile_test_results = 4;
+
+  // ID of the release intent associated with this qualification report.
+  string release_intent_id = 5;
+
+  // Git commit SHA of the openconfig/featureprofiles repository from which
+  // tests were executed.
+  string featureprofiles_commit_id = 6;
+}
+
+enum Vendor {
+  VENDOR_UNSPECIFIED = 0;
+  VENDOR_ARISTA = 1;
+  VENDOR_CISCO = 2;
+  VENDOR_JUNIPER = 3;
+  VENDOR_NOKIA = 4;
+}
+
+// ImageMetadata defines parameters needed for binary image verification.
+message ImageMetadata {
+  string image_name = 1;
+  string software_version = 2;
+  oneof checksum {
+    string sha256 = 3;
+    // MD5 is deprecated due to collision risks (go/No-MD5).
+    string md5 = 4 [deprecated = true];
+  }
+  bool is_engineering_build = 5;
+  string chassis_mpn = 6;
+}

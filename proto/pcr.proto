@@ -1,0 +1,98 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package openconfig.qualificationreporter;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/openconfig/qualification-reporter/proto";
+
+// Enumerations
+enum HashAlgo {
+  HASH_ALGO_UNSPECIFIED = 0;
+  HASH_ALGO_SHA1 = 1;
+  HASH_ALGO_SHA256 = 2;
+  HASH_ALGO_SHA384 = 3;
+  HASH_ALGO_SHA512 = 4;
+}
+
+enum RootOfTrustVersion {
+  ROOT_OF_TRUST_VERSION_UNSPECIFIED = 0;
+  TPM_1_2_PCR = 1;
+  TPM_2_0_PCR = 2;
+}
+
+enum BootStage {
+  SRTM = 0;
+  BIOS = 1;
+  BIOS_CONFIGURATION = 2;
+  EMBEDDED_OPTION_ROMS = 3;
+  PLATFORM_EXTENSIONS = 4;
+  PLATFORM_INITIALIZATION_DRIVERS = 5;
+  PLATFORM_CONFIGURATIONS = 6;
+  UEFI_APPLICATIONS = 7;
+  UEFI_APPLICATION_CONFIGURATION = 8;
+  PARTITION_TABLE = 9;
+  BOOT_MANAGER = 10;
+  BOOT_CONFIGURATION = 11;
+  BOOT_LOADER = 12;
+  KERNEL_CONFIGURATION = 13;
+  KERNEL_COMMAND_LINE = 14;
+  KERNEL = 15;
+  OS_CONFIGURATION = 16;
+  ROOT_FILESYSTEM = 17;
+  OS_EXTENSION = 18;
+  CONTAINER_IMAGES = 19;
+  OTHER = 20;
+}
+
+message PcrValues {
+  // Refers to the PCR index value
+  int32 pcr_index = 1;
+
+  // Refers to a quick reference name to define PCR measurement content
+  // associated with the pcr index. eg - UEFI Boot Manager Code=pcr_4
+  repeated BootStage boot_stage = 2;
+
+  // Refers to the set of multiple PCR raw byte hashes for this index.
+  repeated bytes hashes = 3;
+}
+
+message MeasurementIdentifier {
+  // Refers to the version of the software/firmware
+  string image_version = 1;
+
+  // Refers to aboot version or bootloader versions for vendors
+  string bootloader_version = 2;
+
+  // Refers to hardware model for the collected PCR
+  string hardware_model = 3;
+
+  // Hash algorithm of the selected PCR bank
+  HashAlgo hash_algorithm = 4;
+}
+
+message PCRResponse {
+  MeasurementIdentifier identifier = 1;
+
+  // Refers to the TPM (Trusted Platform Module) version supported by each
+  // Control Card
+  RootOfTrustVersion root_of_trust = 2;
+
+  // Time of PCR Artifact Collection
+  google.protobuf.Timestamp timestamp = 3;
+  map<int32, PcrValues> pcr_values = 4;
+}
