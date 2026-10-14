@@ -27,15 +27,16 @@ enum PlatformType {
   PLATFORM_TYPE_KNE = 2;
 }
 
-// ReleaseIntent defines the set of feature profile tests required for
-// qualifying a target release.
+// ReleaseIntent defines the feature profile tests excluded from qualifying a
+// target release. All other tests in the featureprofiles test registry are
+// expected to be run.
 message ReleaseIntent {
   // Canonical identifier for the release (e.g., "August_2026_GA").
   string release_id = 1;
 
-  // List of intended feature profile test IDs required to pass qualification
-  // (e.g., "ACL-1.2", "gNOI-4.1").
-  repeated string intended_test_ids = 2;
+  // Deprecated: use excluded_tests instead. This field will be removed and
+  // its number reserved once all consumers have migrated.
+  repeated string intended_test_ids = 2 [deprecated = true];
 
   // Target chassis Model Part Numbers (e.g., "DCS-7280CR3K-32D4",
   // "3HE14838AA"). Multiple MPNs may be specified for abstract SKUs with
@@ -44,4 +45,15 @@ message ReleaseIntent {
 
   // Target execution platform (e.g., HARDWARE or KNE virtual environment).
   PlatformType target_platform = 4;
+
+  // Tests excluded from qualification. All other tests in the featureprofiles
+  // test registry are expected to be run. An empty list means no tests are
+  // excluded.
+  repeated ExcludedTest excluded_tests = 5;
+}
+
+// ExcludedTest identifies a feature profile test excluded from qualification.
+message ExcludedTest {
+  // Test registry ID of the excluded test (e.g., "BGP-1.2").
+  string test_id = 1;
 }

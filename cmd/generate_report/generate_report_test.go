@@ -315,23 +315,66 @@ md5: "5b20e06ae34b5f884639bb6199fc0d17"
 	}
 }
 
-func TestBuildReport(t *testing.T) {
-	intent := &ripb.ReleaseIntent{
-		ReleaseId:       "Release_2026_Q3",
-		IntendedTestIds: []string{"ACL-1.2", "gNOI-4.1", "BGP-2.1"},
+func TestValidateReleaseIntent(t *testing.T) {
+	tests := []struct {
+		name        string
+		intent      *ripb.ReleaseIntent
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "valid_with_excluded_tests",
+			intent: &ripb.ReleaseIntent{
+				ReleaseId:     "Release_2026_Q3",
+				ExcludedTests: []*ripb.ExcludedTest{{TestId: "BGP-2.1"}, {TestId: "ACL-1.1"}},
+			},
+		},
+		{
+			name:   "valid_with_no_excluded_tests",
+			intent: &ripb.ReleaseIntent{ReleaseId: "Release_2026_Q3"},
+		},
+		{
+			name:        "missing_release_id",
+			intent:      &ripb.ReleaseIntent{},
+			wantErr:     true,
+			errContains: "release_id cannot be empty",
+		},
+		{
+			name: "empty_excluded_test_id",
+			intent: &ripb.ReleaseIntent{
+				ReleaseId:     "Release_2026_Q3",
+				ExcludedTests: []*ripb.ExcludedTest{{TestId: "BGP-2.1"}, {}},
+			},
+			wantErr:     true,
+			errContains: "excluded_tests[1].test_id cannot be empty",
+		},
 	}
 
-	testMap := map[string]*opb.TestResult{
-		"ACL-1.2": {
-			TestId: "ACL-1.2",
-			Status: opb.TestStatus_TEST_STATUS_PASS,
-		},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateReleaseIntent(tc.intent)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateReleaseIntent() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr && tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+				t.Errorf("validateReleaseIntent() error %q, want error containing %q", err.Error(), tc.errContains)
+			}
+		})
+	}
+}
+
+func TestBuildReport(t *testing.T) {
+	ledger := map[string]*opb.TestResult{
 		"gNOI-4.1": {
 			TestId: "gNOI-4.1",
 			Status: opb.TestStatus_TEST_STATUS_FAIL,
 		},
-		"EXTRA-1.1": {
-			TestId: "EXTRA-1.1",
+		"ACL-1.2": {
+			TestId: "ACL-1.2",
+			Status: opb.TestStatus_TEST_STATUS_PASS,
+		},
+		"BGP-2.1": {
+			TestId: "BGP-2.1",
 			Status: opb.TestStatus_TEST_STATUS_PASS,
 		},
 	}
@@ -352,13 +395,19 @@ func TestBuildReport(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		intent     *ripb.ReleaseIntent
+		testMap    map[string]*opb.TestResult
 		vendorStr  string
 		commitSHA  string
 		pcr        *pcrpb.PCRResponse
 		wantReport *qrpb.QualificationReport
 	}{
 		{
-			name:      "full_report_with_all_fields_and_intended_tests",
+			name: "no_exclusions_reports_all_results_sorted",
+			intent: &ripb.ReleaseIntent{
+				ReleaseId: "Release_2026_Q3",
+			},
+			testMap:   ledger,
 			vendorStr: "ARISTA",
 			commitSHA: "abc1234",
 			pcr:       pcrResp,
@@ -370,13 +419,18 @@ func TestBuildReport(t *testing.T) {
 				FeatureprofilesCommitId: "abc1234",
 				FeatureProfileTestResults: []*opb.TestResult{
 					{TestId: "ACL-1.2", Status: opb.TestStatus_TEST_STATUS_PASS},
+					{TestId: "BGP-2.1", Status: opb.TestStatus_TEST_STATUS_PASS},
 					{TestId: "gNOI-4.1", Status: opb.TestStatus_TEST_STATUS_FAIL},
-					{TestId: "BGP-2.1", Status: opb.TestStatus_TEST_STATUS_NOT_RUN},
 				},
 			},
 		},
 		{
-			name:      "case_insensitive_vendor_and_nil_pcr",
+			name: "excluded_results_omitted_and_unexecuted_exclusions_ignored",
+			intent: &ripb.ReleaseIntent{
+				ReleaseId:     "Release_2026_Q3",
+				ExcludedTests: []*ripb.ExcludedTest{{TestId: "BGP-2.1"}, {TestId: "NOT-RUN-1.1"}},
+			},
+			testMap:   ledger,
 			vendorStr: "cisco",
 			commitSHA: "0123456789abcdef",
 			pcr:       nil,
@@ -389,15 +443,29 @@ func TestBuildReport(t *testing.T) {
 				FeatureProfileTestResults: []*opb.TestResult{
 					{TestId: "ACL-1.2", Status: opb.TestStatus_TEST_STATUS_PASS},
 					{TestId: "gNOI-4.1", Status: opb.TestStatus_TEST_STATUS_FAIL},
-					{TestId: "BGP-2.1", Status: opb.TestStatus_TEST_STATUS_NOT_RUN},
 				},
+			},
+		},
+		{
+			name: "empty_ledger_produces_no_results",
+			intent: &ripb.ReleaseIntent{
+				ReleaseId: "Release_2026_Q3",
+			},
+			testMap:   map[string]*opb.TestResult{},
+			vendorStr: "NOKIA",
+			commitSHA: "abc1234",
+			wantReport: &qrpb.QualificationReport{
+				ReleaseIntentId:         "Release_2026_Q3",
+				Vendor:                  qrpb.Vendor_VENDOR_NOKIA,
+				ImageMetadata:           imgMeta,
+				FeatureprofilesCommitId: "abc1234",
 			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotReport, err := buildReport(intent, testMap, imgMeta, tc.pcr, tc.vendorStr, tc.commitSHA)
+			gotReport, err := buildReport(tc.intent, tc.testMap, imgMeta, tc.pcr, tc.vendorStr, tc.commitSHA)
 			if err != nil {
 				t.Fatalf("buildReport() unexpected error: %v", err)
 			}

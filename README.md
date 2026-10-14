@@ -19,13 +19,16 @@ The repository contains:
     -   `qualification_report.proto`: Core data model representing the overall
         qualification report, test verdicts, software image metadata, and
         hardware targets.
-    -   `release_intent.proto`: Defines the expected feature profile test suite
-        requirements, targets, and criteria for a release qualification.
+    -   `release_intent.proto`: Defines the release qualification targets and
+        the feature profile tests excluded from qualification. All other tests
+        in the featureprofiles test registry are expected to be run.
     -   `pcr.proto`: Platform Configuration Register (PCR) measurements for
         platform security and attestation validation.
 -   **Report Generator CLI (`cmd/generate_report`)**:
     -   Aggregates Ondatra JSON-Lines test results, image metadata, and release
-        intent into a unified `QualificationReport`.
+        intent into a unified `QualificationReport`. The report contains the
+        results of all executed tests except those excluded by the release
+        intent.
     -   Validates results against required criteria and checks cryptographic
         image signatures and digests.
 

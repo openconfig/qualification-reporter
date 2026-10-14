@@ -23,9 +23,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -147,11 +149,8 @@ func main() {
 	if err := prototext.Unmarshal(intentData, intent); err != nil {
 		log.Fatalf("Failed to parse ReleaseIntent textproto from %q: %v", *intentPath, err)
 	}
-	if intent.GetReleaseId() == "" {
-		log.Fatalf("Validation error in ReleaseIntent %q: release_id cannot be empty", *intentPath)
-	}
-	if len(intent.GetIntendedTestIds()) == 0 {
-		log.Fatalf("Validation error in ReleaseIntent %q: intended_test_ids cannot be empty", *intentPath)
+	if err := validateReleaseIntent(intent); err != nil {
+		log.Fatalf("Validation error in ReleaseIntent %q: %v", *intentPath, err)
 	}
 
 	testMap, err := parseJSONLLedger(*testResultsPath)
@@ -221,33 +220,49 @@ func parseImageMetadata(metaPath string) (*qrpb.ImageMetadata, error) {
 	return imgMeta, nil
 }
 
-// buildReport compiles the final QualificationReport protobuf message in deterministic order.
+// validateReleaseIntent checks the fields of a ReleaseIntent that report
+// generation depends on. An empty excluded_tests list is valid and means that
+// no tests are excluded.
+func validateReleaseIntent(intent *ripb.ReleaseIntent) error {
+	if intent.GetReleaseId() == "" {
+		return fmt.Errorf("release_id cannot be empty")
+	}
+	for i, excludedTest := range intent.GetExcludedTests() {
+		if excludedTest.GetTestId() == "" {
+			return fmt.Errorf("excluded_tests[%d].test_id cannot be empty", i)
+		}
+	}
+	return nil
+}
+
+// buildReport compiles the final QualificationReport protobuf message.
+//
+// The report records the results of all executed tests, sorted by test ID,
+// except tests excluded by the release intent. Tests that were expected but
+// not executed are not added here: the set of expected tests is derived from
+// the featureprofiles test registry by Google's validation pipeline.
 func buildReport(intent *ripb.ReleaseIntent, testMap map[string]*opb.TestResult, imgMeta *qrpb.ImageMetadata, pcrResp *pcrpb.PCRResponse, vendorStr, commitSHA string) (*qrpb.QualificationReport, error) {
+	releaseID := intent.GetReleaseId()
+	excludedTests := intent.GetExcludedTests()
+	excludedTestIDs := make([]string, 0, len(excludedTests))
+	for _, excludedTest := range excludedTests {
+		excludedTestIDs = append(excludedTestIDs, excludedTest.GetTestId())
+	}
+
 	report := &qrpb.QualificationReport{
-		ReleaseIntentId:         intent.GetReleaseId(),
+		ReleaseIntentId:         releaseID,
 		Vendor:                  validVendors[strings.ToUpper(vendorStr)],
 		ImageMetadata:           imgMeta,
 		PcrResponse:             pcrResp,
 		FeatureprofilesCommitId: commitSHA,
 	}
 
-	intendedSet := make(map[string]bool, len(intent.GetIntendedTestIds()))
-	for _, testID := range intent.GetIntendedTestIds() {
-		intendedSet[testID] = true
-		if tr, ok := testMap[testID]; ok {
-			report.FeatureProfileTestResults = append(report.FeatureProfileTestResults, tr)
-		} else {
-			report.FeatureProfileTestResults = append(report.FeatureProfileTestResults, &opb.TestResult{
-				TestId: testID,
-				Status: opb.TestStatus_TEST_STATUS_NOT_RUN,
-			})
+	for _, testID := range slices.Sorted(maps.Keys(testMap)) {
+		if slices.Contains(excludedTestIDs, testID) {
+			log.Printf("Warning: test result for %q found in ledger is excluded by ReleaseIntent %q and will be omitted from the report", testID, releaseID)
+			continue
 		}
-	}
-
-	for testID := range testMap {
-		if !intendedSet[testID] {
-			log.Printf("Warning: test result for %q found in ledger is not listed in ReleaseIntent %q and will be omitted from the report", testID, intent.GetReleaseId())
-		}
+		report.FeatureProfileTestResults = append(report.FeatureProfileTestResults, testMap[testID])
 	}
 
 	return report, nil
