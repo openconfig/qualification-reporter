@@ -31,6 +31,11 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// boolPtr returns a pointer to b, for setting optional bool proto fields.
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func TestParseJSONLLedger(t *testing.T) {
 	ts1 := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
 	ts2 := time.Date(2026, 8, 12, 18, 5, 0, 0, time.UTC)
@@ -145,6 +150,34 @@ func TestParseJSONLLedger(t *testing.T) {
 					TestId:        "LARGE-1.1",
 					Status:        opb.TestStatus_TEST_STATUS_FAIL,
 					StatusDetails: strings.Repeat("A", 128*1024),
+				},
+			},
+		},
+		{
+			// Ondatra v0.14.9 and later record the git commit and dirty state of
+			// the test code. An explicit false must stay distinguishable from an
+			// unset value.
+			name: "git_commit_and_dirty_state_parsed",
+			jsonlLines: `{"testId":"OC-26.1","status":"TEST_STATUS_PASS","gitCommit":"5708b76096d9e74083957e3f3bb8beaa30a8c8b3","gitDirty":false}
+{"testId":"gNMI-1.10","status":"TEST_STATUS_FAIL","gitCommit":"5708b76096d9e74083957e3f3bb8beaa30a8c8b3","gitDirty":true}
+{"testId":"BGP-1.1","status":"TEST_STATUS_PASS"}
+`,
+			wantMap: map[string]*opb.TestResult{
+				"OC-26.1": {
+					TestId:    "OC-26.1",
+					Status:    opb.TestStatus_TEST_STATUS_PASS,
+					GitCommit: "5708b76096d9e74083957e3f3bb8beaa30a8c8b3",
+					GitDirty:  boolPtr(false),
+				},
+				"gNMI-1.10": {
+					TestId:    "gNMI-1.10",
+					Status:    opb.TestStatus_TEST_STATUS_FAIL,
+					GitCommit: "5708b76096d9e74083957e3f3bb8beaa30a8c8b3",
+					GitDirty:  boolPtr(true),
+				},
+				"BGP-1.1": {
+					TestId: "BGP-1.1",
+					Status: opb.TestStatus_TEST_STATUS_PASS,
 				},
 			},
 		},
