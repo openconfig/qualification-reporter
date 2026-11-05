@@ -1,6 +1,6 @@
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/openconfig/ondatra v0.14.9 h1:blkeveRIMz7IoK5rblRMwEMDolUnBfaQbAbB2ON5mAI=
-github.com/openconfig/ondatra v0.14.9/go.mod h1:h2WrL4G0W8vid2k2A2EkMf3cBO+0mcEvoQ72XT5bPZo=
+github.com/openconfig/ondatra v0.14.10 h1:fz11LoYFpLPLYmnLwMiSGKlr69d6eEJ9WNSoTYran/E=
+github.com/openconfig/ondatra v0.14.10/go.mod h1:mgJFPu6EpUOmmxHGvVH9GQVFheOqKQTA+fYhKtLOea4=
 google.golang.org/protobuf v1.36.12 h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fwxc=
 google.golang.org/protobuf v1.36.12/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=

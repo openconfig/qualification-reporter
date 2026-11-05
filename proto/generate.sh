@@ -22,4 +22,4 @@ if [ ! -f test_result.proto ]; then
   curl -fsSL https://raw.githubusercontent.com/openconfig/ondatra/main/proto/test_result.proto -o test_result.proto
 fi
 
-protoc --go_out=. --go_opt=paths=source_relative --go_opt=Mtest_result.proto=github.com/openconfig/ondatra/proto pcr.proto release_intent.proto qualification_report.proto
+protoc --go_out=. --go_opt=paths=source_relative --go_opt=Mtest_result.proto=github.com/openconfig/ondatra/proto release_intent.proto qualification_report.proto

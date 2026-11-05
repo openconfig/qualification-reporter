@@ -5,9 +5,8 @@ automated tooling for qualifying Network Operating System (NOS) images against
 OpenConfig Feature Profiles.
 
 It ingests [Ondatra](https://github.com/openconfig/ondatra) test execution
-results, release intent specifications, NOS image metadata, and platform
-integrity measurements (PCR) to generate standardized, auditable qualification
-reports in protobuf/textproto format.
+results, release intent specifications, and NOS image metadata to generate
+standardized, auditable qualification reports in protobuf/textproto format.
 
 ## Overview
 
@@ -15,14 +14,12 @@ The repository contains:
 
 -   **Protobuf Specifications (`proto/`)**:
     -   `qualification_report.proto`: The `QualificationReport` submitted for an
-        image: image metadata, vendor, PCR measurements, the featureprofiles
-        commit, and the raw test results. The report records what ran and the
-        result; it carries no overall verdict.
+        image: image metadata, vendor, the featureprofiles commit, and the raw
+        test results. The report records what ran and the result; it carries no
+        overall verdict.
     -   `release_intent.proto`: Defines the release qualification targets and
         the feature profile tests excluded from qualification. All other tests
         in the featureprofiles test registry are expected to be run.
-    -   `pcr.proto`: Platform Configuration Register (PCR) measurements for
-        platform security and attestation validation.
 -   **Report Generator CLI (`cmd/generate_report`)**:
     -   Aggregates Ondatra JSON-Lines test results, image metadata, and release
         intent into a unified `QualificationReport`. The report contains the
@@ -92,7 +89,6 @@ generate_report \
   -intent=path/to/release_intent.textproto \
   -test_results=path/to/results.jsonl \
   -image_metadata=path/to/image_metadata.textproto \
-  -pcr_response=path/to/pcr_response.textproto \
   -vendor=ARISTA \
   -featureprofiles_commit=<git-sha> \
   -out=qualification_report.textproto
@@ -103,7 +99,6 @@ generate_report \
 | `-intent` | Yes | `ReleaseIntent` textproto (`.textproto`). |
 | `-test_results` | Yes | JSON-Lines ledger written by Ondatra (`.jsonl`). |
 | `-image_metadata` | Yes | `ImageMetadata` textproto (`.textproto`) with a `sha256` checksum. |
-| `-pcr_response` | No | `PCRResponse` textproto (`.textproto`). |
 | `-vendor` | Yes | One of `ARISTA`, `CISCO`, `JUNIPER`, `NOKIA`. |
 | `-featureprofiles_commit` | Yes | Git SHA (7 to 40 hex characters) of the featureprofiles checkout the tests ran from. |
 | `-out` | No | Output path (`.textproto`). Defaults to `qualification_report.textproto`. |

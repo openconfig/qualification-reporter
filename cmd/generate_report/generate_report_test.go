@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	opb "github.com/openconfig/ondatra/proto"
-	pcrpb "github.com/openconfig/qualification-reporter/proto"
 	qrpb "github.com/openconfig/qualification-reporter/proto"
 	ripb "github.com/openconfig/qualification-reporter/proto"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -418,21 +417,12 @@ func TestBuildReport(t *testing.T) {
 		Checksum:        &qrpb.ImageMetadata_Sha256{Sha256: "d18165fa55b1e09cedcec9965068e53f4d169032c840ce76b590719dc489a87d"},
 	}
 
-	pcrResp := &pcrpb.PCRResponse{
-		RootOfTrust: pcrpb.RootOfTrustVersion_TPM_2_0_PCR,
-		Identifier: &pcrpb.MeasurementIdentifier{
-			ImageVersion:  "4.32.0F",
-			HardwareModel: "DCS-7280CR3",
-		},
-	}
-
 	tests := []struct {
 		name       string
 		intent     *ripb.ReleaseIntent
 		testMap    map[string]*opb.TestResult
 		vendorStr  string
 		commitSHA  string
-		pcr        *pcrpb.PCRResponse
 		wantReport *qrpb.QualificationReport
 	}{
 		{
@@ -443,12 +433,10 @@ func TestBuildReport(t *testing.T) {
 			testMap:   ledger,
 			vendorStr: "ARISTA",
 			commitSHA: "abc1234",
-			pcr:       pcrResp,
 			wantReport: &qrpb.QualificationReport{
 				ReleaseIntentId:         "Release_2026_Q3",
 				Vendor:                  qrpb.Vendor_VENDOR_ARISTA,
 				ImageMetadata:           imgMeta,
-				PcrResponse:             pcrResp,
 				FeatureprofilesCommitId: "abc1234",
 				FeatureProfileTestResults: []*opb.TestResult{
 					{TestId: "ACL-1.2", Status: opb.TestStatus_TEST_STATUS_PASS},
@@ -466,12 +454,10 @@ func TestBuildReport(t *testing.T) {
 			testMap:   ledger,
 			vendorStr: "cisco",
 			commitSHA: "0123456789abcdef",
-			pcr:       nil,
 			wantReport: &qrpb.QualificationReport{
 				ReleaseIntentId:         "Release_2026_Q3",
 				Vendor:                  qrpb.Vendor_VENDOR_CISCO,
 				ImageMetadata:           imgMeta,
-				PcrResponse:             nil,
 				FeatureprofilesCommitId: "0123456789abcdef",
 				FeatureProfileTestResults: []*opb.TestResult{
 					{TestId: "ACL-1.2", Status: opb.TestStatus_TEST_STATUS_PASS},
@@ -498,7 +484,7 @@ func TestBuildReport(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotReport, err := buildReport(tc.intent, tc.testMap, imgMeta, tc.pcr, tc.vendorStr, tc.commitSHA)
+			gotReport, err := buildReport(tc.intent, tc.testMap, imgMeta, tc.vendorStr, tc.commitSHA)
 			if err != nil {
 				t.Fatalf("buildReport() unexpected error: %v", err)
 			}
@@ -659,10 +645,9 @@ func TestValidateFlags(t *testing.T) {
 	validIntent := filepath.Join(tmpDir, "intent.textproto")
 	validResults := filepath.Join(tmpDir, "results.jsonl")
 	validImageMeta := filepath.Join(tmpDir, "meta.textproto")
-	validPCR := filepath.Join(tmpDir, "pcr.textproto")
 	validOut := filepath.Join(tmpDir, "report.textproto")
 
-	for _, path := range []string{validIntent, validResults, validImageMeta, validPCR} {
+	for _, path := range []string{validIntent, validResults, validImageMeta} {
 		if err := os.WriteFile(path, []byte("data"), 0644); err != nil {
 			t.Fatalf("Failed to create valid temp file %q: %v", path, err)
 		}
@@ -673,7 +658,6 @@ func TestValidateFlags(t *testing.T) {
 		intent      string
 		results     string
 		imageMeta   string
-		pcr         string
 		vendor      string
 		commit      string
 		out         string
@@ -691,11 +675,10 @@ func TestValidateFlags(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "valid_with_optional_pcr_response",
+			name:      "valid_full_length_git_sha",
 			intent:    validIntent,
 			results:   validResults,
 			imageMeta: validImageMeta,
-			pcr:       validPCR,
 			vendor:    "cisco",
 			commit:    "0123456789abcdef0123456789abcdef01234567",
 			out:       validOut,
@@ -850,7 +833,6 @@ func TestValidateFlags(t *testing.T) {
 			*intentPath = tc.intent
 			*testResultsPath = tc.results
 			*imageMetaPath = tc.imageMeta
-			*pcrResponsePath = tc.pcr
 			*vendorName = tc.vendor
 			*commitIDFlag = tc.commit
 			*outputPath = tc.out
@@ -863,5 +845,61 @@ func TestValidateFlags(t *testing.T) {
 				t.Errorf("validateFlags() error %q, want error containing %q", err.Error(), tc.errContains)
 			}
 		})
+	}
+}
+
+// TestUnmarshalReportWithRemovedPCRField verifies that reports produced before
+// the PCR fields were removed still parse with strict prototext decoding,
+// because pcr_response is a reserved field name in QualificationReport.
+func TestUnmarshalReportWithRemovedPCRField(t *testing.T) {
+	const oldReport = `
+image_metadata: {
+  image_name: "EOS-4.32.1F.swi"
+  software_version: "4.32.1F"
+  sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+vendor: VENDOR_ARISTA
+pcr_response: {
+  identifier: {
+    image_version: "4.32.1F"
+    hardware_model: "DCS-7280CR3K-32D4"
+    hash_algorithm: HASH_ALGO_SHA256
+  }
+  root_of_trust: TPM_2_0_PCR
+  pcr_values: {
+    key: 0
+    value: {
+      boot_stage: BIOS
+      hashes: "\x01\x02"
+    }
+  }
+}
+feature_profile_test_results: {
+  test_id: "OC-26.1"
+  status: TEST_STATUS_PASS
+}
+release_intent_id: "October_2026_GA"
+featureprofiles_commit_id: "abc1234"
+`
+	want := &qrpb.QualificationReport{
+		ImageMetadata: &qrpb.ImageMetadata{
+			ImageName:       "EOS-4.32.1F.swi",
+			SoftwareVersion: "4.32.1F",
+			Checksum:        &qrpb.ImageMetadata_Sha256{Sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		},
+		Vendor: qrpb.Vendor_VENDOR_ARISTA,
+		FeatureProfileTestResults: []*opb.TestResult{
+			{TestId: "OC-26.1", Status: opb.TestStatus_TEST_STATUS_PASS},
+		},
+		ReleaseIntentId:         "October_2026_GA",
+		FeatureprofilesCommitId: "abc1234",
+	}
+
+	got := &qrpb.QualificationReport{}
+	if err := prototext.Unmarshal([]byte(oldReport), got); err != nil {
+		t.Fatalf("prototext.Unmarshal() of a report with pcr_response failed: %v", err)
+	}
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("prototext.Unmarshal() mismatch (-want +got):\n%s", diff)
 	}
 }

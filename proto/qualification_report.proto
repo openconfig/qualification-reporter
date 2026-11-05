@@ -17,20 +17,21 @@ syntax = "proto3";
 package openconfig.qualificationreporter;
 
 import "test_result.proto";
-import "pcr.proto";
 
 option go_package = "github.com/openconfig/qualification-reporter/proto";
 
-// QualificationReport encapsulates image metadata, standardized PCR
-// measurements, and raw test execution results submitted by vendors.
+// QualificationReport encapsulates image metadata and raw test execution
+// results submitted by vendors.
 message QualificationReport {
+  // PCR measurements were removed from the report; PCR ingestion is handled
+  // outside of the qualification report.
+  reserved 3;
+  reserved "pcr_response";
+
   ImageMetadata image_metadata = 1;
 
   // Target vendor identity.
   Vendor vendor = 2;
-
-  // Standardized PCR measurements for platform integrity verification.
-  PCRResponse pcr_response = 3;
 
   // Factual test results for all evaluated test cases.
   repeated ondatra.TestResult feature_profile_test_results = 4;
